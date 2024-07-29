@@ -19,12 +19,6 @@ SENTENCES = [
     "Better late than never.",
 ]
 
-class Header(TextualHeader):
-    """A header with updateable text."""
-
-    def update_text(self, text: str) -> None:
-        self.sub_title = "terminal-type"
-
 class TypingTest(Static):
     words = reactive([])
     current_word_index = reactive(0)
@@ -72,7 +66,7 @@ class TypingTest(Static):
             return int(self.words_typed / minutes)
         return 0
 
-class TypingTestApp(App):
+class TerminalType(App):
     CSS = """
     Screen {
         align: center middle;
@@ -105,18 +99,19 @@ class TypingTestApp(App):
 
     BINDINGS = [
         ("ctrl+q", "quit", "Quit"),
-        ("ctrl+h", "toggle_help", "Toggle Help (c) Joey.com 2024"),
+        ("ctrl+h", "toggle_help", "Toggle Help (c) Joey Miller 2024"),
     ]
 
     def __init__(self):
         super().__init__()
         self.typing_test = TypingTest()
+        self.title = "Terminal Type"
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield TextualHeader()
         with Container(id="test-container"):
             yield self.typing_test
-            yield Input(placeholder="Type the highlighted word and press space")
+            yield Input(placeholder="Type the highlighted word and press space...")
         yield Footer()
 
     def on_mount(self):
@@ -137,25 +132,25 @@ class TypingTestApp(App):
             word = event.value.strip()
             self.typing_test.check_word(word)
             event.input.value = ""
-        self.query_one(Header).update_text(f"WPM: {self.typing_test.calculate_wpm()}")
-
+        self.sub_title = f"WPM: {self.typing_test.calculate_wpm()}"
+        
 class HelpScreen(Static):
     def compose(self) -> ComposeResult:
         yield Static(
-            "Typing Test Help\n\n"
+            "Terminal Type Help\n\n"
             "- Type the highlighted word in the input box\n"
             "- Press space to submit the word and move to the next one\n"
             "- Correct words turn green, incorrect words turn red\n"
             "- Your WPM (Words Per Minute) is displayed at the top\n"
             "- Press Ctrl+Q to quit the application\n"
             "- Press Ctrl+H to toggle this help screen\n\n"
-            "Press any key to close this help screen",
-            classes="help"
+            "Press any key to close this help screen\n",
+            "Made by Joey Miller in 2024"
         )
 
     def on_key(self, event: events.Key):
         self.remove()
 
 if __name__ == "__main__":
-    app = TypingTestApp()
+    app = TerminalType()
     app.run()
