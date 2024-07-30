@@ -213,8 +213,8 @@ class TerminalType(App):
         # Show debug mode in the title if enabled
         if (debug_mode := getattr(self.typing_test, "debug", False)):
             self.title = f"Terminal Type (Debug Mode: {debug_mode})"
-        else:
-            self.sub_title = f"WPM: {wpm} | Time Left: {countdown}s"
+            
+        self.sub_title = f"WPM: {wpm} | Time Left: {countdown}s"
 
     def on_typing_test_countdown(self):
         self.update_header()
