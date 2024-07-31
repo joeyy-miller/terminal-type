@@ -2,9 +2,11 @@ import time
 import random
 from textual.app import App, ComposeResult
 from textual.containers import Container
-from textual.widgets import Header as TextualHeader, Footer, Static, Input
+from textual.widgets import Header as TextualHeader, Footer, Static, Input, ProgressBar
+from textual.widgets import Static
 from textual import events
 from textual.reactive import reactive
+from textual.timer import Timer
 
 SENTENCES = [
     "The quick brown fox jumps over the lazy dog.",
@@ -35,6 +37,9 @@ class TypingTest(Static):
         self.words = self.text.split()
         self.start_time = None
         self.words_typed = 0
+        self.correct_words = 0
+        self.incorrect_words = 0
+        self.total_keystrokes = 0
 
     def generate_text(self):
         return " ".join(random.sample(SENTENCES, k=len(SENTENCES)))
@@ -50,6 +55,12 @@ class TypingTest(Static):
         )
         self.current_word_index += 1
         self.words_typed += 1
+        self.total_keystrokes += len(typed_word) + 1  # +1 for space
+
+        if correct:
+            self.correct_words += 1
+        else:
+            self.incorrect_words += 1
 
         if self.current_word_index >= len(self.words):
             self.words.extend(self.generate_text().split())
@@ -72,6 +83,50 @@ class TypingTest(Static):
             return int(self.words_typed / minutes)
         return 0
 
+class EndScreen(Static):
+    def __init__(self, typing_test):
+        super().__init__()
+        self.typing_test = typing_test
+
+    def compose(self) -> ComposeResult:
+        wpm = self.typing_test.calculate_wpm()
+        accuracy = (self.typing_test.correct_words / self.typing_test.words_typed) * 100 if self.typing_test.words_typed > 0 else 0
+        percentile = self.calculate_percentile(wpm)
+
+        yield Static(f"Time's up! Here are your results:")
+        yield Static(f"Words Per Minute (WPM): {wpm}")
+        yield Static(f"Accuracy: {accuracy:.2f}%")
+        yield Static(f"Correct words: {self.typing_test.correct_words}")
+        yield Static(f"Incorrect words: {self.typing_test.incorrect_words}")
+        yield Static(f"Total keystrokes: {self.typing_test.total_keystrokes}")
+        yield Static(f"You are in the {percentile}th percentile!")
+        yield Static(self.create_progress_bar(percentile))
+        yield Static("Press any key to restart")
+
+    def calculate_percentile(self, wpm):
+        # Mock data for percentile calculation
+        percentiles = {
+            20: 30,
+            40: 45,
+            60: 60,
+            80: 75,
+            90: 90,
+            95: 100,
+            99: 120
+        }
+        for percentile, threshold in percentiles.items():
+            if wpm <= threshold:
+                return percentile
+        return 99
+
+    def create_progress_bar(self, percentage):
+        filled = int(percentage / 10)
+        empty = 10 - filled
+        return f"[{'█' * filled}{'░' * empty}] {percentage}%"
+
+    def on_key(self, event: events.Key):
+        self.app.reset_test()
+        
 class TypingTestApp(App):
     CSS = """
     Screen {
@@ -94,12 +149,16 @@ class TypingTestApp(App):
         dock: bottom;
     }
 
-    .help {
+    .help, .end-screen {
         width: 100%;
         height: 100%;
         background: $panel;
         color: $text;
         padding: 1 2;
+    }
+
+    ProgressBar {
+        width: 50%;
     }
     """
 
@@ -111,6 +170,7 @@ class TypingTestApp(App):
     def __init__(self):
         super().__init__()
         self.typing_test = TypingTest()
+        self.test_duration = 30.0  # 30 seconds
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -122,6 +182,26 @@ class TypingTestApp(App):
     def on_mount(self):
         self.typing_test.update_content()
         self.query_one(Input).focus()
+        self.set_timer(self.test_duration, self.show_end_screen)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if " " in event.value:
+            word = event.value.strip()
+            self.typing_test.check_word(word)
+            event.input.value = ""
+        self.query_one(Header).update_text(f"WPM: {self.typing_test.calculate_wpm()}")
+
+    def show_end_screen(self):
+        self.query_one(Input).disabled = True
+        self.mount(EndScreen(self.typing_test))
+
+    def reset_test(self):
+        self.query("EndScreen").remove()
+        self.typing_test = TypingTest()
+        self.typing_test.update_content()
+        self.query_one(Input).disabled = False
+        self.query_one(Input).focus()
+        self.set_timer(self.test_duration, self.show_end_screen)
 
     def action_quit(self):
         self.exit()
@@ -131,13 +211,6 @@ class TypingTestApp(App):
             self.query_one("HelpScreen").remove()
         else:
             self.mount(HelpScreen())
-
-    def on_input_changed(self, event: Input.Changed) -> None:
-        if " " in event.value:
-            word = event.value.strip()
-            self.typing_test.check_word(word)
-            event.input.value = ""
-        self.query_one(Header).update_text(f"WPM: {self.typing_test.calculate_wpm()}")
 
 class HelpScreen(Static):
     def compose(self) -> ComposeResult:
