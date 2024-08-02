@@ -3,6 +3,7 @@ import random
 import asyncio
 import statistics
 import sys
+import argparse
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.widgets import Header, Footer, Static, Input
@@ -22,17 +23,18 @@ SENTENCES = [
     "Better late than never.",
 ]
 
-# Globals
-TIME = 60  # 60 seconds
+DEFAULT_TIME = 60  # 60 seconds
 
 class TypingTest(Static):
     words = reactive([])
     current_word_index = reactive(0)
-    countdown = reactive(TIME)  # TIME seconds countdown
+    countdown = reactive(0)
 
-    def __init__(self, debug=False):
+    def __init__(self, test_duration, debug=False):
         super().__init__()
         self.debug = debug
+        self.test_duration = test_duration
+        self.countdown = test_duration  # Initialize without reactive()
         self.text = self.generate_text()
         self.words = self.text.split()
         self.start_time = None
@@ -80,7 +82,7 @@ class TypingTest(Static):
     def calculate_wpm(self):
         if self.start_time:
             elapsed_time = time.time() - self.start_time
-            minutes = elapsed_time / TIME
+            minutes = elapsed_time / 60
             return int(self.words_typed / minutes)
         return 0
 
@@ -96,7 +98,7 @@ class TypingTest(Static):
 
     def update_countdown(self):
         elapsed = int(time.time() - self.start_time)
-        self.countdown = max(TIME - elapsed, 0)
+        self.countdown = max(self.test_duration - elapsed, 0)
         if self.debug:
             self.notify("countdown")
         if self.countdown == 0:
@@ -121,14 +123,37 @@ Correct words: {self.correct_words}
 Incorrect words: {self.incorrect_words}
 Total keystrokes: {self.total_keystrokes}
 
-Your performance:
 {graph}
-You are in the {percentile:.0f}th percentile!
         """
         self.update(end_message)
 
     def create_percentile_graph(self, percentile):
-        graph = "[" + "=" * int(percentile / 2) + ">" + " " * (50 - int(percentile / 2)) + "]"
+        graph = "Your performance:\n"
+        graph += "0%   25%   50%   75%   100%\n"
+        graph += "▏    ▏    ▏    ▏    ▏\n"
+        filled = int(percentile / 2)
+        graph += "█" * filled
+        if filled < 50:
+            graph += "▓"
+            graph += "░" * (49 - filled)
+        graph += "▏\n"
+        graph += "▏    ▏    ▏    ▏    ▏\n"
+        
+        # Add marker for user's percentile
+        marker_position = int(percentile / 2)
+        graph += " " * marker_position + "▲\n"
+        graph += f"You are here: {percentile:.0f}th percentile\n\n"
+        
+        # Add performance interpretation
+        if percentile < 25:
+            graph += "Keep practicing! You're on your way to improvement."
+        elif percentile < 50:
+            graph += "Good effort! You're making progress."
+        elif percentile < 75:
+            graph += "Great job! You're above average."
+        else:
+            graph += "Excellent! You're among the top performers."
+        
         return graph
 
     def notify(self, message: str) -> None:
@@ -171,9 +196,9 @@ class TerminalType(App):
         ("ctrl+h", "toggle_help", "Toggle Help (c) Joey Miller 2024"),
     ]
 
-    def __init__(self, debug=False):
+    def __init__(self, test_duration, debug=False):
         super().__init__()
-        self.typing_test = TypingTest(debug=debug)
+        self.typing_test = TypingTest(test_duration=test_duration, debug=debug)
         self.title = "Terminal Type"
 
     def compose(self) -> ComposeResult:
@@ -209,11 +234,12 @@ class TerminalType(App):
 
     def update_header(self):
         wpm = self.typing_test.calculate_wpm()
-        countdown = self.typing_test.countdown
+        countdown = self.typing_test.countdown  # Access countdown directly
+        
         # Show debug mode in the title if enabled
         if (debug_mode := getattr(self.typing_test, "debug", False)):
             self.title = f"Terminal Type (Debug Mode: {debug_mode})"
-            
+        
         self.sub_title = f"WPM: {wpm} | Time Left: {countdown}s"
 
     def on_typing_test_countdown(self):
@@ -240,6 +266,10 @@ class HelpScreen(Static):
         self.remove()
 
 if __name__ == "__main__":
-    debug_mode = "-d" in sys.argv
-    app = TerminalType(debug=debug_mode)
+    parser = argparse.ArgumentParser(description="Terminal Type - A typing test application")
+    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug mode")
+    parser.add_argument("-t", "--time", type=int, default=DEFAULT_TIME, help="Test duration in seconds")
+    args = parser.parse_args()
+
+    app = TerminalType(test_duration=args.time, debug=args.debug)
     app.run()
