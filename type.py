@@ -258,7 +258,7 @@ class HelpScreen(Static):
             "- Your WPM (Words Per Minute) is displayed at the top\n"
             "- Press Ctrl+Q to quit the application\n"
             "- Press Ctrl+H to toggle this help screen\n\n"
-            "Press any key to close this help screen\n",
+            "Press any key to close this help screen\n"
             "Made by Joey Miller in 2024"
         )
 
