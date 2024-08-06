@@ -109,40 +109,44 @@ class TypingTest(Static):
         total_words = self.correct_words + self.incorrect_words
         accuracy = (self.correct_words / total_words) * 100 if total_words > 0 else 0
 
-        # Simple percentile calculation (you might want to replace this with actual data)
-        percentile = min(max((final_wpm - 30) / 70 * 100, 0), 100)
-        
-        graph = self.create_percentile_graph(percentile)
+        graph = self.create_percentile_graph(final_wpm)
 
         end_message = f"""
-Time's up! Here are your results:
+    Time's up! Here are your results:
 
-Final WPM: {final_wpm}
-Accuracy: {accuracy:.2f}%
-Correct words: {self.correct_words}
-Incorrect words: {self.incorrect_words}
-Total keystrokes: {self.total_keystrokes}
+    Final WPM: {final_wpm}
+    Accuracy: {accuracy:.2f}%
+    Correct words: {self.correct_words}
+    Incorrect words: {self.incorrect_words}
+    Total keystrokes: {self.total_keystrokes}
 
-{graph}
+    {graph}
         """
         self.update(end_message)
 
-    def create_percentile_graph(self, percentile):
+    def create_percentile_graph(self, wpm):
+        percentile = self.wpm_to_percentile(wpm)
         graph = "Your performance:\n"
-        graph += "0%   25%   50%   75%   100%\n"
-        graph += "▏    ▏    ▏    ▏    ▏\n"
-        filled = int(percentile / 2)
-        graph += "█" * filled
-        if filled < 50:
-            graph += "▓"
-            graph += "░" * (49 - filled)
-        graph += "▏\n"
-        graph += "▏    ▏    ▏    ▏    ▏\n"
+        graph += "0    30   60   90   120 WPM\n"
+        graph += "│    │    │    │    │\n"
         
-        # Add marker for user's percentile
-        marker_position = int(percentile / 2)
-        graph += " " * marker_position + "▲\n"
-        graph += f"You are here: {percentile:.0f}th percentile\n\n"
+        total_width = 24  # 24 characters to represent 0-120 WPM (5 WPM per character)
+        filled = min(int(wpm / 5), total_width)
+        
+        bar = "█" * filled
+        if filled < total_width:
+            bar += "▒"
+            bar += "░" * (total_width - filled - 1)
+        
+        graph += f"{bar}│\n"
+        graph += "│    │    │    │    │\n"
+        
+        # Add marker for user's WPM
+        marker_position = min(int(wpm / 5), total_width)
+        marker = " " * marker_position + "▲"
+        graph += f"{marker}\n"
+        
+        graph += f"Your WPM: {wpm} (Estimated {percentile:.0f}th percentile)\n\n"
         
         # Add performance interpretation
         if percentile < 25:
@@ -155,6 +159,17 @@ Total keystrokes: {self.total_keystrokes}
             graph += "Excellent! You're among the top performers."
         
         return graph
+
+    def wpm_to_percentile(self, wpm):
+        # This is a rough estimation. You might want to use actual typing speed distribution data.
+        if wpm < 30:
+            return max(wpm / 30 * 25, 1)
+        elif wpm < 60:
+            return 25 + (wpm - 30) / 30 * 25
+        elif wpm < 90:
+            return 50 + (wpm - 60) / 30 * 25
+        else:
+            return min(75 + (wpm - 90) / 30 * 25, 99)
 
     def notify(self, message: str) -> None:
         if self.debug:
